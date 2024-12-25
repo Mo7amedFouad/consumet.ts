@@ -1,13 +1,13 @@
 "use strict";
 Object.defineProperty(exports, "__esModule", { value: true });
 const cheerio_1 = require("cheerio");
-const models_1 = require("../../models");
 const extractors_1 = require("../../extractors");
+const models_1 = require("../../models");
 class DramaCool extends models_1.MovieParser {
     constructor() {
         super(...arguments);
         this.name = 'DramaCool';
-        this.baseUrl = 'https://asianc.to';
+        this.baseUrl = 'https://asianc.co';
         this.logo = 'https://play-lh.googleusercontent.com/IaCb2JXII0OV611MQ-wSA8v_SAs9XF6E3TMDiuxGGXo4wp9bI60GtDASIqdERSTO5XU';
         this.classPath = 'MOVIES.DramaCool';
         this.supportedTypes = new Set([models_1.TvType.MOVIE, models_1.TvType.TVSERIES]);
@@ -92,7 +92,11 @@ class DramaCool extends models_1.MovieParser {
                     .map((i, el) => $(el).text().trim())
                     .get();
                 mediaInfo.image = $('div.details > div.img > img').attr('src');
-                mediaInfo.description = $('div.details div.info p:nth-child(6)').text();
+                mediaInfo.description = $('div.details div.info p:not(:has(*))')
+                    .map((i, el) => $(el).text().trim())
+                    .get()
+                    .join('\n\n')
+                    .trim();
                 mediaInfo.releaseDate = this.removeContainsFromString($('div.details div.info p:contains("Released:")').text(), 'Released');
                 mediaInfo.contentRating = this.removeContainsFromString($('div.details div.info p:contains("Content Rating:")').text(), 'Content Rating');
                 mediaInfo.airsOn = this.removeContainsFromString($('div.details div.info p:contains("Airs On:")').text(), 'Airs On');
@@ -154,6 +158,10 @@ class DramaCool extends models_1.MovieParser {
                         return {
                             sources: await new extractors_1.StreamSB(this.proxyConfig, this.adapter).extract(serverUrl),
                         };
+                    case models_1.StreamingServers.StreamWish:
+                        return {
+                            ...(await new extractors_1.StreamWish(this.proxyConfig, this.adapter).extract(serverUrl)),
+                        };
                     default:
                         throw new Error('Server not supported');
                 }
@@ -181,6 +189,27 @@ class DramaCool extends models_1.MovieParser {
         };
         this.fetchRecentMovies = async (page = 1) => {
             return this.fetchData(`${this.baseUrl}/recently-added-movie?page=${page}`, page, false, true);
+        };
+        this.fetchSpotlight = async () => {
+            try {
+                const results = { results: [] };
+                const { data } = await this.client.get(`${this.baseUrl}`);
+                const $ = (0, cheerio_1.load)(data);
+                $('div.ls-slide').each((i, el) => {
+                    var _a;
+                    results.results.push({
+                        id: (_a = $(el).find('a').attr('href')) === null || _a === void 0 ? void 0 : _a.slice(1),
+                        title: $(el).find('img').attr('title'),
+                        url: `${this.baseUrl}${$(el).find('a').attr('href')}`,
+                        cover: $(el).find('img').attr('src'),
+                    });
+                });
+                return results;
+            }
+            catch (err) {
+                console.error(err);
+                throw new Error(err.message);
+            }
         };
         this.downloadLink = (url) => {
             return url.replace(/^(https:\/\/[^\/]+)\/[^?]+(\?.+)$/, '$1/download$2');
@@ -274,7 +303,8 @@ class DramaCool extends models_1.MovieParser {
 //testing fetchPopular via iife
 // (async () => {
 //   const dramaCool = new DramaCool();
-//   await dramaCool.fetchRecentTvShows();
+//   const l=await dramaCool.fetchSpotlight();
+//   console.log(l);
 // })();
 exports.default = DramaCool;
 //# sourceMappingURL=dramacool.js.map

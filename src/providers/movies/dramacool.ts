@@ -1,22 +1,21 @@
 import { load } from 'cheerio';
-import { AxiosAdapter } from 'axios';
 
+import { AsianLoad, MixDrop, StreamSB, StreamTape, StreamWish } from '../../extractors';
 import {
-  MovieParser,
-  TvType,
-  IMovieInfo,
   IEpisodeServer,
-  StreamingServers,
-  ISource,
+  IMovieInfo,
   IMovieResult,
   ISearch,
+  ISource,
   MediaStatus,
+  MovieParser,
+  StreamingServers,
+  TvType,
 } from '../../models';
-import { MixDrop, AsianLoad, StreamTape, StreamSB } from '../../extractors';
 
 class DramaCool extends MovieParser {
   override readonly name = 'DramaCool';
-  protected override baseUrl = 'https://asianc.to';
+  protected override baseUrl = 'https://asianc.co';
   protected override logo =
     'https://play-lh.googleusercontent.com/IaCb2JXII0OV611MQ-wSA8v_SAs9XF6E3TMDiuxGGXo4wp9bI60GtDASIqdERSTO5XU';
   protected override classPath = 'MOVIES.DramaCool';
@@ -107,7 +106,11 @@ class DramaCool extends MovieParser {
         .map((i, el) => $(el).text().trim())
         .get();
       mediaInfo.image = $('div.details > div.img > img').attr('src');
-      mediaInfo.description = $('div.details div.info p:nth-child(6)').text();
+      mediaInfo.description = $('div.details div.info p:not(:has(*))')
+        .map((i, el) => $(el).text().trim())
+        .get()
+        .join('\n\n')
+        .trim();
       mediaInfo.releaseDate = this.removeContainsFromString(
         $('div.details div.info p:contains("Released:")').text(),
         'Released'
@@ -221,6 +224,10 @@ class DramaCool extends MovieParser {
           return {
             sources: await new StreamSB(this.proxyConfig, this.adapter).extract(serverUrl),
           };
+        case StreamingServers.StreamWish:
+          return {
+            ...(await new StreamWish(this.proxyConfig, this.adapter).extract(serverUrl)),
+          };
         default:
           throw new Error('Server not supported');
       }
@@ -254,6 +261,29 @@ class DramaCool extends MovieParser {
 
   fetchRecentMovies = async (page: number = 1): Promise<ISearch<IMovieResult>> => {
     return this.fetchData(`${this.baseUrl}/recently-added-movie?page=${page}`, page, false, true);
+  };
+
+  fetchSpotlight = async (): Promise<ISearch<IMovieResult>> => {
+    try {
+      const results: ISearch<IMovieResult> = { results: [] };
+      const { data } = await this.client.get(`${this.baseUrl}`);
+
+      const $ = load(data);
+
+      $('div.ls-slide').each((i, el) => {
+        results.results.push({
+          id: $(el).find('a').attr('href')?.slice(1)!,
+          title: $(el).find('img').attr('title')!,
+          url: `${this.baseUrl}${$(el).find('a').attr('href')}`,
+          cover: $(el).find('img').attr('src'),
+        });
+      });
+
+      return results;
+    } catch (err) {
+      console.error(err);
+      throw new Error((err as Error).message);
+    }
   };
 
   private async fetchData(
@@ -331,7 +361,8 @@ class DramaCool extends MovieParser {
 //testing fetchPopular via iife
 // (async () => {
 //   const dramaCool = new DramaCool();
-//   await dramaCool.fetchRecentTvShows();
+//   const l=await dramaCool.fetchSpotlight();
+//   console.log(l);
 // })();
 
 export default DramaCool;
