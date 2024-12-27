@@ -196,7 +196,7 @@ class FlixHQ extends MovieParser {
         case StreamingServers.UpCloud:
           return {
             headers: { Referer: serverUrl.href },
-            ...(await new VidCloud(this.proxyConfig, this.adapter).extract(serverUrl, true)),
+            ...(await new VidCloud(this.proxyConfig, this.adapter).extract(serverUrl)),
           };
         default:
           return {
@@ -215,8 +215,9 @@ class FlixHQ extends MovieParser {
         throw new Error(`Server ${server} not found`);
       }
 
+      //https://flixhq.to/ajax/episode/sources/10864852
       const { data } = await this.client.get(
-        `${this.baseUrl}/ajax/get_link/${servers[i].url.split('.').slice(-1).shift()}`
+        `${this.baseUrl}/ajax/episode/sources/${servers[i].url.split('.').slice(-1).shift()}`
       );
 
       const serverUrl: URL = new URL(data.link);
